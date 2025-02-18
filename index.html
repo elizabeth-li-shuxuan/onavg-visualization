@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brain Vertex Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            background-color: black;
+        }
+        #brain-image {
+            max-width: 80%;
+            max-height: 80%;
+            object-fit: contain;
+        }
+        #info-container {
+            position: fixed;
+            bottom: 10px;
+            left: 10px; /* text in the bottom-left corner */
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        #vertex-info, #file-name {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Brain image -->
+    <img id="brain-image" src="ico8brain.png" alt="Brain Image">
+
+    <!-- info-container, file-name, vertex-info -->
+    <div id="info-container">
+        <p id="file-name"></p>
+        <p id="vertex-info">Hover over the image to see vertex information</p>
+    </div>
+
+    <script>
+        const image = document.getElementById('brain-image');
+        const vertexInfo = document.getElementById('vertex-info');
+        const fileNameInfo = document.getElementById('file-name');
+
+        // extract and display file name of brain image
+        function displayFileName() {
+            const fileName = image.src.split('/').pop(); // Extract the file name from the image src
+            fileNameInfo.textContent = `File: ${fileName}`;
+        }
+    
+        //send displayed image size to backend
+        function updateDisplaySize() {
+            const rect = image.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+    
+            console.log(`Updating display size: width=${width}, height=${height}`);
+    
+            //send dimensions to backend
+            fetch('http://127.0.0.1:5000/update_display_size', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ width, height }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log('Display size updated successfully');
+                } else {
+                    console.error('Error updating display size:', data);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending display size:', error);
+            });
+        }
+    
+        ///update display size and file name when page loads
+        window.addEventListener('load', () => {
+            updateDisplaySize();
+            displayFileName(); // Display the file name
+        });
+    
+        // Update the display size when the window is resized
+        window.addEventListener('resize', updateDisplaySize);
+    
+        image.addEventListener('mousemove', (event) => {
+            //get image position and size
+            //origin is top left
+            const rect = image.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top; 
+    
+            // Check if the cursor is within the visible image bounds
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                console.log(`Mouse relative to image: (${x}, ${y})`);
+    
+                // Send coordinates to the backend
+                fetch(`http://127.0.0.1:5000/get_vertex?x=${x}&y=${y}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.ico128 !== null) {
+                            vertexInfo.innerHTML = `ico8: ${data.ico8} <br>
+                                                    ico16: ${data.ico16} <br>
+                                                    ico32: ${data.ico32} <br>
+                                                    ico64: ${data.ico64} <br>
+                                                    ico128: ${data.ico128}`;
+                        } else {
+                            vertexInfo.textContent = 'No vertex selected';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching vertex:', error);
+                        vertexInfo.textContent = 'No vertex selected';
+                    });
+            } else { // Cursor is outside the image bounds
+                vertexInfo.textContent = 'No vertex selected';
+            }
+        });
+    
+        image.addEventListener('mouseleave', () => {
+            vertexInfo.textContent = 'No vertex selected';
+        });
+    </script>
+</body>
+</html>
